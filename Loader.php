@@ -165,7 +165,7 @@ class Loader implements \Iterator
 
 		$using_phar = ($this->addon_phar_dir === false) ? false : !$ignore_phar;
 		$phar_path = $this->addon_phar_dir . $addon . '.phar';
-		$metadata_class = '\\emberlabs\materia\\Metadata\\' . $addon_uc;
+		$metadata_class = '\\emberlabs\materia\\Metadata\\' . ucfirst($addon);
 
 		require $this->findMetadata($addon, $using_phar);
 
