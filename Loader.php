@@ -40,10 +40,42 @@ class Loader implements \Iterator
 
 	protected $addon_dir = 'addons/';
 
+	protected $autoloader_callback;
+
 	/**
 	 * @var array - Array of instantiated metadata objects.
 	 */
 	protected $metadata = array();
+
+	public function __construct($base_path, $addon_dir, $addon_phar_dir = false)
+	{
+		// asdf
+	}
+
+	public function setBasePath($base_path)
+	{
+		// asdf
+	}
+
+	public function setAddonDirs($addon_dir, $addon_phar_dir = false)
+	{
+		// asdf
+	}
+
+	public function setCallback(\Closure $callback)
+	{
+		// asdf
+	}
+
+	public function get($addon)
+	{
+		// asdf
+	}
+
+	public function check($addon)
+	{
+		// asdf
+	}
 
 	/**
 	 * Loads an addon's metadata object, verifies dependencies, and initializes the addon
@@ -52,7 +84,7 @@ class Loader implements \Iterator
 	 * @throws \RuntimeException
 	 * @throws \LogicException
 	 */
-	public function loadAddon($addon)
+	public function load($addon, $ignore_phar = false)
 	{
 		// Check to see if the addon has already been loaded.
 		if(isset($this->metadata[$addon]))
@@ -62,18 +94,18 @@ class Loader implements \Iterator
 
 		$using_phar = false;
 		$addon_uc = ucfirst($addon);
-		// Check to see if there's a phar we are dealing with here before moving on to try to load the standard class files.
 		$phar_path = $this->addon_phar_dir . "{$addon}.phar";
 		$metadata_path = "/emberlabs/materia/Metadata/{$addon_uc}.php";
 		$metadata_class = "\\emberlabs\materia\\Metadata\\{$addon_uc}";
 
-		if(file_exists(YUKARI . "/{$phar_path}"))
+		// Check to see if there's a phar we are dealing with here before moving on to try to load the standard class files.
+		if(!$ignore_phar && file_exists($this->base_path . "/{$phar_path}"))
 		{
 			$using_phar = true;
 
 			if(!file_exists("phar://{$phar_path}/{$metadata_path}"))
 			{
-				throw new \RuntimeException('Could not locate addon metadata file');
+				throw new \RuntimeException('Could not locate required addon metadata file');
 			}
 
 			require "phar://{$phar_path}/{$metadata_path}";
@@ -81,12 +113,12 @@ class Loader implements \Iterator
 		else
 		{
 
-			if(!file_exists(YUKARI . "/addons/{$addon}{$metadata_path}"))
+			if(!file_exists($this->base_path . $this->addon_dir . "{$addon}{$metadata_path}"))
 			{
 				throw new \RuntimeException('Could not locate addon metadata file');
 			}
 
-			require YUKARI . "/addons/{$addon}{$metadata_path}";
+			require $this->base_path . $this->addon_dir . "{$addon}{$metadata_path}";
 		}
 
 
@@ -97,7 +129,7 @@ class Loader implements \Iterator
 
 		// We want to instantiate the addon's metadata object, and make sure it's the right type of object.
 		$metadata = new $metadata_class;
-		if(!($metadata instanceof \Codebite\Yukari\Addon\Metadata\MetadataBase))
+		if(!($metadata instanceof \emberlabs\materia\Metadata\MetadataBase))
 		{
 			throw new \LogicException('Addon metadata class does not extend class MetadataBase');
 		}
@@ -118,18 +150,24 @@ class Loader implements \Iterator
 		// If the addon's metadata object passes all checks and we're not using a phar file, then we add the addon's directory to the autoloader include path
 		if($using_phar)
 		{
-			Autoloader::getInstance()->setPath("phar://{$phar_path}/");
+			$set_path = "phar://{$phar_path}/";
 		}
 		else
 		{
-			Autoloader::getInstance()->setPath(YUKARI . "/addons/{$addon}/");
+			$set_path = $this->base_path . $this->addon_dir . "{$addon}/";
+		}
+
+		if($this->autoloader_callback !== NULL)
+		{
+			$t = $this->autoloader_callback;
+			$t($set_path);
 		}
 
 		// Initialize the addon
 		$metadata->initialize();
 
 		// Store the metadata object in a predictable slot.
-		$this->metadata[hash('md5', $addon)] = $metadata;
+		$this->metadata[$addon] = $metadata;
 	}
 
 	/**
@@ -165,7 +203,7 @@ class Loader implements \Iterator
 
 	/**
 	 * Iterator method, gets the current element
-	 * @return \Codebite\Yukari\Addon\Metadata\MetadataBase - The current addon metadata object of focus.
+	 * @return \emberlabs\materia\Metadata\MetadataBase - The current addon metadata object of focus.
 	 */
 	public function current()
 	{
