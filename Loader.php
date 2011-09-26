@@ -151,9 +151,6 @@ class Loader implements \Iterator
 	 * @param boolean $ignore_phar - Do we want to ignore phar loading?
 	 * @return void
 	 *
-	 * @throws MetadataException
-	 * @throws DependencyException
-	 * @throws \LogicException
 	 */
 	public function load($addon, $ignore_phar = false)
 	{
@@ -169,40 +166,17 @@ class Loader implements \Iterator
 
 		require $this->findMetadata($addon, $using_phar);
 
-		if(!class_exists($metadata_class))
-		{
-			throw new MetadataException('Addon metadata class not defined');
-		}
-
-		// We want to instantiate the addon's metadata object, and make sure it's the right type of object.
-		$metadata = new $metadata_class($this);
-		if(!($metadata instanceof \emberlabs\materia\Metadata\MetadataBase))
-		{
-			throw new \LogicException('Addon metadata class does not extend class MetadataBase');
-		}
-
-		// Let our addons check for their dependencies here.
-		try
-		{
-			if(!$metadata->checkDependencies())
-			{
-				throw new DependencyException('Addon metadata object declares that its required dependencies have not been met');
-			}
-		}
-		catch(\RuntimeException $e)
-		{
-			$this->metadata[$addon] = false;
-			throw new DependencyException(sprintf('Dependency check failed, reason: %1$s', $e->getMessage()));
-		}
+		// Load the metadata object
+		$metadata = $this->loadMetadata($metadata_class);
 
 		// If the addon's metadata object passes all checks and we're not using a phar file, then we add the addon's directory to the autoloader include path
 		if($using_phar)
 		{
-			$set_path = 'phar://' . $phar_path . '/';
+			$set_path = 'phar://' . $phar_path;
 		}
 		else
 		{
-			$set_path = $this->base_path . $this->addon_dir . $addon . '/';
+			$set_path = $this->base_path . $this->addon_dir . $addon;
 		}
 
 		// If we need to update an autoloader with new load paths, we trigger the autoloader callback that should have been defined earlier and provide it the $set_path var
@@ -252,6 +226,46 @@ class Loader implements \Iterator
 
 			return $this->base_path . $this->addon_dir . $addon . $metadata_path;
 		}
+	}
+
+	/**
+	 * Load the metadata file for this addon.
+	 * @param string $metadata_class - The class to load for the metadata object.
+	 * @return \emberlabs\materia\Metadata\MetadataBase - The metadata object.
+	 *
+	 * @throws DependencyException
+	 * @throws MetadataException
+	 * @throws \LogicException
+	 */
+	protected function loadMetadata($metadata_class)
+	{
+		if(!class_exists($metadata_class))
+		{
+			throw new MetadataException('Addon metadata class not defined');
+		}
+
+		// We want to instantiate the addon's metadata object, and make sure it's the right type of object.
+		$metadata = new $metadata_class($this);
+		if(!($metadata instanceof \emberlabs\materia\Metadata\MetadataBase))
+		{
+			throw new \LogicException('Addon metadata class does not extend class MetadataBase');
+		}
+
+		// Let our addons check for their dependencies here.
+		try
+		{
+			if(!$metadata->checkDependencies())
+			{
+				throw new DependencyException('Addon metadata object declares that its required dependencies have not been met');
+			}
+		}
+		catch(\RuntimeException $e)
+		{
+			$this->metadata[$addon] = false;
+			throw new DependencyException(sprintf('Dependency check failed, reason: %1$s', $e->getMessage()));
+		}
+
+		return $metadata;
 	}
 
 	/**
