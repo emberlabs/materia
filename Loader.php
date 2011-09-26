@@ -20,6 +20,8 @@
  */
 
 namespace emberlabs\materia;
+use \emberlabs\materia\Internal\MetadataException;
+use \emberlabs\materia\Internal\DependencyException;
 
 /**
  * materia - Addon manager class,
@@ -34,54 +36,123 @@ namespace emberlabs\materia;
  */
 class Loader implements \Iterator
 {
+	/**
+	 * @var string - The base path to use with all addon loading.
+	 */
 	protected $base_path = '';
 
-	protected $addon_phar_dir = 'lib/addons/';
+	/**
+	 * @var false|string - The directory containing all addon phar packages (or false if no phar loading in use)
+	 */
+	protected $addon_phar_dir = false;
 
-	protected $addon_dir = 'addons/';
+	/**
+	 * @var string - The directory containing all addon include files.
+	 */
+	protected $addon_dir = '/addons/';
 
-	protected $autoloader_callback;
+	/**
+	 * @var \Closure|NULL - NULL if no callback, or \Closure of the callback to run on addon load.
+	 */
+	protected $autoloader_callback = NULL;
 
 	/**
 	 * @var array - Array of instantiated metadata objects.
 	 */
 	protected $metadata = array();
 
+	/**
+	 * Constructor
+	 * @param string $base_path - The base load path to use.
+	 * @param string $addon_dir - The directory containing the include files for all addons.
+	 * @param string $addon_phar_dir - The directory containing addon phar packages. May be set as false to disable phar loading.
+	 */
 	public function __construct($base_path, $addon_dir, $addon_phar_dir = false)
 	{
-		// asdf
+		$this->setBasePath($base_path)
+			->setAddonDirs($addon_dir, $addon_phar_dir);
 	}
 
+	/**
+	 * Set the base load path.
+	 * @param string $base_path - The base load path to use.
+	 * @return \emberlabs\materia\Loader - Provides a fluent interface.
+	 */
 	public function setBasePath($base_path)
 	{
-		// asdf
+		$this->base_path = rtrim($base_path, '\\/');
+
+		return $this;
 	}
 
+	/**
+	 * Set the addon load directories.
+	 * @param string $addon_dir - The directory containing the include files for all addons.
+	 * @param string $addon_phar_dir - The directory containing addon phar packages. May be set as false to disable phar loading.
+	 * @return \emberlabs\materia\Loader - Provides a fluent interface.
+	 */
 	public function setAddonDirs($addon_dir, $addon_phar_dir = false)
 	{
-		// asdf
+		$this->addon_dir = '/' . rtrim(ltrim($addon_dir, '\\/'), '\\/') . '/';
+		$this->addon_phar_dir = ($addon_phar_dir) ? rtrim($addon_phar_dir, '\\/') . '/' : false;
+
+		return $this;
 	}
 
+	/**
+	 * Set a callback to be triggered on addon load, so that addons can be added to an autoloader
+	 * @param \Closure $callback - The callback to use.
+	 * @return \emberlabs\materia\Loader - Provides a fluent interface.
+	 */
 	public function setCallback(\Closure $callback)
 	{
-		// asdf
+		$this->autoloader_callback = $callback;
+
+		return $this;
 	}
 
+	/**
+	 * Get an addon's metadata object
+	 * @param string $addon - The addon to load.
+	 * @return \emberlabs\materia\Metadata\MetadataBase|NULL - NULL if no object available, or the metadata object requested
+	 */
 	public function get($addon)
 	{
-		// asdf
+		if($this->check($addon) === true)
+		{
+			return $this->metadata[$addon];
+		}
+		else
+		{
+			return NULL;
+		}
 	}
 
+	/**
+	 * Check to see if an addon has been loaded
+	 * @param string $addon - The addon to check.
+	 * @return boolean - True if addon is loaded, false if it was attempted to be loaded previously and failed, NULL if not loaded and no attempt has been made to load yet.
+	 */
 	public function check($addon)
 	{
-		// asdf
+		if(isset($this->metadata[$addon]))
+		{
+			return ($this->metadata[$addon] !== false) ? true : false;
+		}
+		else
+		{
+			return NULL;
+		}
 	}
 
 	/**
 	 * Loads an addon's metadata object, verifies dependencies, and initializes the addon
+	 * @param string $addon - The addon to load
+	 * @param boolean $ignore_phar - Do we want to ignore phar loading?
 	 * @return void
 	 *
-	 * @throws \RuntimeException
+	 * @throws MetadataException
+	 * @throws DependencyException
 	 * @throws \LogicException
 	 */
 	public function load($addon, $ignore_phar = false)
@@ -92,43 +163,19 @@ class Loader implements \Iterator
 			return;
 		}
 
-		$using_phar = false;
-		$addon_uc = ucfirst($addon);
-		$phar_path = $this->addon_phar_dir . "{$addon}.phar";
-		$metadata_path = "/emberlabs/materia/Metadata/{$addon_uc}.php";
-		$metadata_class = "\\emberlabs\materia\\Metadata\\{$addon_uc}";
+		$using_phar = ($this->addon_phar_dir === false) ? false : !$ignore_phar;
+		$phar_path = $this->addon_phar_dir . $addon . '.phar';
+		$metadata_class = '\\emberlabs\materia\\Metadata\\' . $addon_uc;
 
-		// Check to see if there's a phar we are dealing with here before moving on to try to load the standard class files.
-		if(!$ignore_phar && file_exists($this->base_path . "/{$phar_path}"))
-		{
-			$using_phar = true;
-
-			if(!file_exists("phar://{$phar_path}/{$metadata_path}"))
-			{
-				throw new \RuntimeException('Could not locate required addon metadata file');
-			}
-
-			require "phar://{$phar_path}/{$metadata_path}";
-		}
-		else
-		{
-
-			if(!file_exists($this->base_path . $this->addon_dir . "{$addon}{$metadata_path}"))
-			{
-				throw new \RuntimeException('Could not locate addon metadata file');
-			}
-
-			require $this->base_path . $this->addon_dir . "{$addon}{$metadata_path}";
-		}
-
+		require $this->findMetadata($addon, $using_phar);
 
 		if(!class_exists($metadata_class))
 		{
-			throw new \RuntimeException('Addon metadata class not defined');
+			throw new MetadataException('Addon metadata class not defined');
 		}
 
 		// We want to instantiate the addon's metadata object, and make sure it's the right type of object.
-		$metadata = new $metadata_class;
+		$metadata = new $metadata_class($this);
 		if(!($metadata instanceof \emberlabs\materia\Metadata\MetadataBase))
 		{
 			throw new \LogicException('Addon metadata class does not extend class MetadataBase');
@@ -139,28 +186,30 @@ class Loader implements \Iterator
 		{
 			if(!$metadata->checkDependencies())
 			{
-				throw new \RuntimeException('Addon metadata object declares that its required dependencies have not been met');
+				throw new DependencyException('Addon metadata object declares that its required dependencies have not been met');
 			}
 		}
-		catch(\Exception $e)
+		catch(\RuntimeException $e)
 		{
-			throw new \RuntimeException(sprintf('Dependency check failed, reason: %1$s', $e->getMessage()));
+			$this->metadata[$addon] = false;
+			throw new DependencyException(sprintf('Dependency check failed, reason: %1$s', $e->getMessage()));
 		}
 
 		// If the addon's metadata object passes all checks and we're not using a phar file, then we add the addon's directory to the autoloader include path
 		if($using_phar)
 		{
-			$set_path = "phar://{$phar_path}/";
+			$set_path = 'phar://' . $phar_path . '/';
 		}
 		else
 		{
-			$set_path = $this->base_path . $this->addon_dir . "{$addon}/";
+			$set_path = $this->base_path . $this->addon_dir . $addon . '/';
 		}
 
+		// If we need to update an autoloader with new load paths, we trigger the autoloader callback that should have been defined earlier and provide it the $set_path var
 		if($this->autoloader_callback !== NULL)
 		{
-			$t = $this->autoloader_callback;
-			$t($set_path);
+			$_ac = $this->autoloader_callback;
+			$_ac($set_path);
 		}
 
 		// Initialize the addon
@@ -168,6 +217,41 @@ class Loader implements \Iterator
 
 		// Store the metadata object in a predictable slot.
 		$this->metadata[$addon] = $metadata;
+	}
+
+	/**
+	 * Locate the addon's metadata file
+	 * @param string $addon - The addon file to find the metadata object for
+	 * @param boolean &$using_phar - Are we using a phar?
+	 * @return string - The location of the metadata object file.
+	 *
+	 * @throws MetadataException
+	 */
+	protected function findMetadata($addon, &$using_phar)
+	{
+		$phar_path = $this->addon_phar_dir . $addon . '.phar';
+		$metadata_path = '/emberlabs/materia/Metadata/' . ucfirst($addon) . '.php';
+
+		// Check to see if there's a phar we are dealing with here before moving on to try to load the standard class files.
+		if($using_phar !== false && file_exists($this->base_path . '/' . $phar_path))
+		{
+			if(!file_exists('phar://' . $phar_path . '/' . $metadata_path))
+			{
+				throw new MetadataException('Could not locate required addon metadata file');
+			}
+
+			return 'phar://' . $phar_path . '/' . $metadata_path;
+		}
+		else
+		{
+
+			if(!file_exists($this->base_path . $this->addon_dir . $addon . $metadata_path))
+			{
+				throw new MetadataException('Could not locate addon metadata file');
+			}
+
+			return $this->base_path . $this->addon_dir . $addon . $metadata_path;
+		}
 	}
 
 	/**

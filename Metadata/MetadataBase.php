@@ -20,6 +20,7 @@
  */
 
 namespace emberlabs\materia\Metadata;
+use \emberlabs\materia\Internal\DependencyException;
 
 /**
  * materia - Addon metadata base class,
@@ -71,13 +72,14 @@ abstract class MetadataBase
 	 * Loads an addon dependency for the current addon, complete with error handling
 	 * @param string $slot - The slot to check for the dependency in.
 	 * @param string $name - The name of the addon dependency to load if the slot isn't occupied
-	 * @return boolean - Returns true if the dependency is loaded.
+	 * @return boolean - Returns true if the dependency is properly loaded.
 	 *
-	 * @throws \RuntimeException
+	 * @throws DependencyException
 	 */
 	final public function loadAddonDependency($slot, $name)
 	{
-		if(!$this->loader->check($slot))
+		$loaded = $this->loader->check($slot);
+		if($loaded === NULL)
 		{
 			try
 			{
@@ -86,10 +88,17 @@ abstract class MetadataBase
 			}
 			catch(\RuntimeException $e)
 			{
-				throw new \RuntimeException(sprintf('Failed to load dependency addon "%1$s", error message "%2$s"', $name, $e->getMessage()));
+				throw new DependencyException(sprintf('Failed to load dependency addon "%1$s", error message "%2$s"', $name, $e->getMessage()));
 			}
 		}
-		return true;
+		elseif($loaded === false)
+		{
+			throw new DependencyException('Failed to load dependency addon "%1$s", previous load attempted failed');
+		}
+		else
+		{
+			return true;
+		}
 	}
 
 	/**
