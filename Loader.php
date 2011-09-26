@@ -94,7 +94,7 @@ class Loader implements \Iterator
 	public function setAddonDirs($addon_dir, $addon_phar_dir = false)
 	{
 		$this->addon_dir = '/' . rtrim(ltrim($addon_dir, '\\/'), '\\/') . '/';
-		$this->addon_phar_dir = ($addon_phar_dir) ? rtrim($addon_phar_dir, '\\/') . '/' : false;
+		$this->addon_phar_dir = ($addon_phar_dir) ? rtrim(ltrim($addon_phar_dir, '\\/'), '\\/') . '/' : false;
 
 		return $this;
 	}
@@ -235,12 +235,12 @@ class Loader implements \Iterator
 		// Check to see if there's a phar we are dealing with here before moving on to try to load the standard class files.
 		if($using_phar !== false && file_exists($this->base_path . '/' . $phar_path))
 		{
-			if(!file_exists('phar://' . $phar_path . '/' . $metadata_path))
+			if(!file_exists('phar://' . $phar_path . $metadata_path))
 			{
 				throw new MetadataException('Could not locate required addon metadata file');
 			}
 
-			return 'phar://' . $phar_path . '/' . $metadata_path;
+			return 'phar://' . $phar_path . $metadata_path;
 		}
 		else
 		{
