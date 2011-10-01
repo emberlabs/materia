@@ -62,15 +62,17 @@ class Loader implements \Iterator
 	protected $metadata = array();
 
 	/**
+	 * @var array - Array of loaded addon names.
+	 */
+	protected $addons_loaded = array();
+
+	/**
 	 * Constructor
 	 * @param string $base_path - The base load path to use.
-	 * @param string $addon_dir - The directory containing the include files for all addons.
-	 * @param string $addon_phar_dir - The directory containing addon phar packages. May be set as false to disable phar loading.
 	 */
-	public function __construct($base_path, $addon_dir, $addon_phar_dir = false)
+	public function __construct($base_path)
 	{
-		$this->setBasePath($base_path)
-			->setAddonDirs($addon_dir, $addon_phar_dir);
+		$this->setBasePath($base_path);
 	}
 
 	/**
@@ -147,12 +149,13 @@ class Loader implements \Iterator
 
 	/**
 	 * Loads an addon's metadata object, verifies dependencies, and initializes the addon
-	 * @param string $addon - The addon to load
+	 * @param string $addon - The addon to load.
+	 * @param string $alias_as - Do we want to alias the addon? (Useful for loading multiple instances)
 	 * @param boolean $ignore_phar - Do we want to ignore phar loading?
 	 * @return void
 	 *
 	 */
-	public function load($addon, $ignore_phar = false)
+	public function load($addon, $alias_as = '', $ignore_phar = false)
 	{
 		// Check to see if the addon has already been loaded.
 		if(isset($this->metadata[$addon]))
@@ -160,11 +163,15 @@ class Loader implements \Iterator
 			return;
 		}
 
+		$alias_as = $alias_as ?: $addon;
 		$using_phar = ($this->addon_phar_dir === false) ? false : !$ignore_phar;
 		$phar_path = $this->addon_phar_dir . $addon . '.phar';
 		$metadata_class = '\\emberlabs\materia\\Metadata\\' . ucfirst($addon);
 
-		require $this->findMetadata($addon, $using_phar);
+		if(!class_exists($metadata_class, false))
+		{
+			require $this->findMetadata($addon, $using_phar);
+		}
 
 		// Load the metadata object
 		$metadata = $this->loadMetadata($metadata_class);
@@ -180,17 +187,18 @@ class Loader implements \Iterator
 		}
 
 		// If we need to update an autoloader with new load paths, we trigger the autoloader callback that should have been defined earlier and provide it the $set_path var
-		if($this->autoloader_callback !== NULL)
+		if($this->autoloader_callback !== NULL && !isset($this->addons_loaded[$addon]))
 		{
 			$_ac = $this->autoloader_callback;
 			$_ac($set_path);
+			$this->addons_loaded[$addon] = true;
 		}
 
 		// Initialize the addon
 		$metadata->initialize();
 
 		// Store the metadata object in a predictable slot.
-		$this->metadata[$addon] = $metadata;
+		$this->metadata[$alias_as] = $metadata;
 	}
 
 	/**
