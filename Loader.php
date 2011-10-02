@@ -200,7 +200,8 @@ class Loader implements \Iterator
 		}
 
 		// Initialize the addon
-		$metadata->initialize();
+		$metadata->setAlias($alias_as)
+			->initialize();
 
 		// Store the metadata object in a predictable slot.
 		$this->metadata[$alias_as] = $metadata;

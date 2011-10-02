@@ -61,11 +61,35 @@ abstract class MetadataBase
 	protected $loader;
 
 	/**
+	 * @var string - The alias of this metadata object.
+	 */
+	private $alias;
+
+	/**
 	 * @ignore - preventing override of __construct on metadata objects
 	 */
 	final public function __construct(\emberlabs\materia\Loader $loader)
 	{
 		$this->loader = $loader;
+	}
+
+	/**
+	 * Stores the alias for this metadata object
+	 * @param string $alias - The alias for the object.
+	 * @return \emberlabs\materia\\Metadata\MetadataBase - Provides a fluent interface.
+	 */
+	final public function setAlias($alias)
+	{
+		$this->alias = $alias;
+	}
+
+	/**
+	 * Get the alias for this metadata object.
+	 * @return string - The metadata object's instance.
+	 */
+	final public function getAlias()
+	{
+		return $this->alias;
 	}
 
 	/**
