@@ -37,6 +37,11 @@ use \emberlabs\materia\Internal\DependencyException;
 class Loader implements \Iterator
 {
 	/**
+	 * materia version stamp
+	 */
+	const VERSION = '1.0.0-dev';
+
+	/**
 	 * @var string - The base path to use with all addon loading.
 	 */
 	protected $base_path = '';
