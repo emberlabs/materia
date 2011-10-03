@@ -81,6 +81,8 @@ abstract class MetadataBase
 	final public function setAlias($alias)
 	{
 		$this->alias = $alias;
+
+		return $this;
 	}
 
 	/**
