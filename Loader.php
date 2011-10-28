@@ -179,7 +179,15 @@ class Loader implements \Iterator
 		}
 
 		// Load the metadata object
-		$metadata = $this->loadMetadata($metadata_class);
+		try
+		{
+			$metadata = $this->loadMetadata($metadata_class);
+		}
+		catch(DependencyException $e)
+		{
+			$this->metadata[$addon] = false;
+			throw $e;
+		}
 
 		// If the addon's metadata object passes all checks and we're not using a phar file, then we add the addon's directory to the autoloader include path
 		if($using_phar)
@@ -275,7 +283,6 @@ class Loader implements \Iterator
 		}
 		catch(\RuntimeException $e)
 		{
-			$this->metadata[$addon] = false;
 			throw new DependencyException(sprintf('Dependency check failed, reason: %1$s', $e->getMessage()));
 		}
 
